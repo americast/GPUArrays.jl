@@ -46,7 +46,7 @@ function Base.mapreduce(f, op, v0, A::GPUArray, B::GPUArray)
     acc_mapreduce(f, op, v0, A, (B,))
 end
 function Base.mapreduce(f, op, v0, A::GPUArray)
-    acc_mapreduce(f, op, v0, A, ())
+    @time acc_mapreduce(f, op, v0, A, ())
 end
 
 @generated function mapreducedim_kernel(state, f, op, R, A, range::NTuple{N, Any}) where N
