@@ -35,7 +35,7 @@ function maxpool2d(a, pool; stride_ = 1)
     out = out[1:(div(Asize[1] - pool, stride_) + 1), 1:(div(Asize[2] - pool, stride_) + 1), :, :]
     outSize = UInt32.(size(out))
     gpu_call(maxpool2d_kernel, a, (a, out, Asize, pool, stride_, outSize))
-    GPUArrays.synchronize(out)
+    # GPUArrays.synchronize(out)
     out
 end
 
