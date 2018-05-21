@@ -14,10 +14,13 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
 
     globalRow = TS * (groups_1[1] - 1) + (row[1] - 1) + 1 # Row ID of C (0..M)
     globalCol = TS * (groups_2[1] - 1) + (col[1] - 1) + 1 # Col ID of C (0..N)
-    if globalRow > (Asize[1] - TS) || globalCol > (Bsize[2] - TS)
-        return
+        
+    @inbounds begin
+        if globalRow > (Asize[1] - TS) || globalCol > (Bsize[2] - TS)
+            return
+        end
     end
- 
+     
     # Local memory to fit a tile of TS*TS elements of A and B
     Asub = zeros(Float32, TS * TS)
     Bsub = zeros(Float32, TS * TS)
@@ -30,10 +33,10 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
     for t in UInt32(1):UInt32(numTiles)
  
         # Load one tile of A and B into local memory
-        tiledRow = TS * (t - 1) + (row[1] - 1) + 1
-        tiledCol = TS * (t - 1) + (col[1] - 1) + 1
-        Asub[(col[1] - 1) * TS + (row[1] - 1) + 1] = A[(tiledCol - 1) * Asize[1] + (globalRow - 1) + 1]
-        Bsub[(col[1] - 1) * TS + (row[1] - 1) + 1] = B[(globalCol - 1) * Asize[2] + (tiledRow - 1) + 1]
+        @inbounds tiledRow = TS * (t - 1) + (row[1] - 1) + 1
+        @inbounds tiledCol = TS * (t - 1) + (col[1] - 1) + 1
+        @inbounds Asub[(col[1] - 1) * TS + (row[1] - 1) + 1] = A[(tiledCol - 1) * Asize[1] + (globalRow - 1) + 1]
+        @inbounds Bsub[(col[1] - 1) * TS + (row[1] - 1) + 1] = B[(globalCol - 1) * Asize[2] + (tiledRow - 1) + 1]
  
         # Synchronise to make sure the tile is loaded
         synchronize_threads(state)
@@ -48,9 +51,10 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
     end
  
     # Store the final result in C
-    out[(globalCol - 1) * Asize[1] + (globalRow - 1) + 1] = acc
+    @inbounds out[(globalCol - 1) * Asize[1] + (globalRow - 1) + 1] = acc
 
     return nothing
+    
 end
 
 
