@@ -3,26 +3,9 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
     row = threadidx_x(state) # Local row ID (max: TS)
     col = threadidx_y(state)
     # col = row
-
-
-    groups_1 = blockidx_x(state)
-    groups_2 = blockidx_y(state)
-
-    globalRow = TS * (groups_1 - 1) + (row - 1) +1# Row ID of C (0..M)
-    globalCol = TS * (groups_2 - 1) + (col - 1) +1# Col ID of C (0..N)
-
-    @inbounds begin
-        if globalRow > Asize[1] || globalCol > Bsize[2]
-            return
-        end
-    end
-
-    # @show globalRow
-    # @show globalCol
-
     # Local memory to fit a tile of TS*TS elements of A and B
-    Asub = @LocalMemory(state, T, IntTS²)
-    Bsub = @LocalMemory(state, T, IntTS²)
+    Asub = @LocalMemory(state, T, TS²)
+    Bsub = @LocalMemory(state, T, TS²)
 
     # Initialise the accumulation register
     acc = T(0.0)
@@ -30,17 +13,8 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
     # Loop over all tiles
     numTiles = div(Asize[2], TS)
     for t in UInt32(1):UInt32(numTiles)
-
-        # Load one tile of A and B into local memory
-        @inbounds tiledRow = TS * (t - 1) + (row - 1) + 1
-        @inbounds tiledCol = TS * (t - 1) + (col - 1) + 1
-        @inbounds Asub[(col - 1) * TS + row] = A[(tiledCol - 1) * Asize[1] + globalRow]
-        @inbounds Bsub[(col - 1) * TS + row] = B[(globalCol - 1) * Asize[2] + tiledRow]
-
-        # Synchronise to make sure the tile is loaded
-        synchronize_threads(state)
-
         # Perform the computation for a single tile
+        # Commenting this inner loop doesn't give an error
         for k in UInt32(1):UInt32(TS)
             @inbounds acc += Asub[(k - 1)*TS + (row - 1 ) + 1] * Bsub[(col - 1) * TS + (k - 1) + 1]
         end
@@ -49,7 +23,7 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
     end
 
     # Store the final result in out
-    @inbounds out[(globalCol - 1) * Asize[1] + (globalRow - 1) + 1] = acc
+    @inbounds out[row] = acc
 
     return
 
