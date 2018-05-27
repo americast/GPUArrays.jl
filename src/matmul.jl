@@ -34,15 +34,15 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
         # Load one tile of A and B into local memory
         @inbounds tiledRow = TS * (t - 1) + (row - 1) + 1
         @inbounds tiledCol = TS * (t - 1) + (col - 1) + 1
-        @inbounds Asub[(col - 1) * TS + row] = A[(tiledCol - 1) * Asize[1] + globalRow]
-        @inbounds Bsub[(col - 1) * TS + row] = B[(globalCol - 1) * Asize[2] + tiledRow]
+        @inbounds Asub[gpu_sub2ind((TS, TS), (col, row))] = A[(tiledCol - 1) * Asize[1] + globalRow]
+        @inbounds Bsub[gpu_sub2ind((TS, TS), (col, row))] = B[(globalCol - 1) * Asize[2] + tiledRow]
 
         # Synchronise to make sure the tile is loaded
         synchronize_threads(state)
 
         # Perform the computation for a single tile
         for k in UInt32(1):UInt32(TS)
-            @inbounds acc += Asub[(k - 1)*TS + (row - 1 ) + 1] * Bsub[(col - 1) * TS + (k - 1) + 1]
+            @inbounds acc += Asub[gpu_sub2ind((TS, TS), (k, row))] * Bsub[gpu_sub2ind((TS, TS), (col, k))]
         end
         # Synchronise before loading the next tile
         synchronize_threads(state)
