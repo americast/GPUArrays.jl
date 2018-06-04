@@ -33,8 +33,8 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
     end
 
     # Local memory to fit a tile of TS*TS elements of A and B
-    Asub = @LocalMemory(state, T, TS²)
-    Bsub = @LocalMemory(state, T, TS²)
+    # Asub = @LocalMemory(state, T, TS²)
+    # Bsub = @LocalMemory(state, T, TS²)
 
     acc = ntuple(Val{WPT}) do i 
      0.0f0
@@ -42,32 +42,32 @@ function matmul_kernel(state, A::AbstractArray{T}, B::AbstractArray{T}, out, Asi
 
     # Loop over all tiles
     for t in UInt32(1):UInt32(numTiles)
-        # Load one tile of A and B into local memory
-        for w in UInt32(1):UInt32(WPT)
-            @inbounds tiledRow = UInt32(TS) * (t - 1) + (row - 1) + 1
-            @inbounds tiledCol = UInt32(TS) * (t - 1) + (col - 1) + 1
-            # save_print("gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, col + w*RTS))): ", gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, col + w*RTS))))
-            @inbounds Asub[gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, (col - 1) + (w - 1)*RTS + 1)))] = A[(tiledCol - 1 + (w - 1)*UInt32(RTS)) * Asize[1] + globalRow]
-            @inbounds Bsub[gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, (col - 1) + (w - 1)*RTS + 1)))] = B[(globalCol - 1 + (w - 1)*UInt32(RTS)) * Asize[2] + tiledRow]
-        end
+        # # Load one tile of A and B into local memory
+        # for w in UInt32(1):UInt32(WPT)
+        #     @inbounds tiledRow = UInt32(TS) * (t - 1) + (row - 1) + 1
+        #     @inbounds tiledCol = UInt32(TS) * (t - 1) + (col - 1) + 1
+        #     # save_print("gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, col + w*RTS))): ", gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, col + w*RTS))))
+        #     @inbounds Asub[gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, (col - 1) + (w - 1)*RTS + 1)))] = A[(tiledCol - 1 + (w - 1)*UInt32(RTS)) * Asize[1] + globalRow]
+        #     @inbounds Bsub[gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, (col - 1) + (w - 1)*RTS + 1)))] = B[(globalCol - 1 + (w - 1)*UInt32(RTS)) * Asize[2] + tiledRow]
+        # end
 
-        # Synchronise to make sure the tile is loaded
-        synchronize_threads(state)
+        # # Synchronise to make sure the tile is loaded
+        # synchronize_threads(state)
 
         # Perform the computation for a single tile
         for k in UInt32(1):UInt32(TS)
-            acc = ntuple_args(Val{WPT}(), acc, Asub, Bsub) do w, acc, Asub, Bsub
-             acc[w] +  Asub[gpu_sub2ind(UInt32.((TS, TS)), UInt32.((row, k)))] * Bsub[gpu_sub2ind(UInt32.((TS, TS)), UInt32.((k, (col - 1) + (w - 1)*RTS + 1)))]
-            end
+            acc = ntuple_args(Val{WPT}(), acc) do w, acc
+             acc[w]
+         end
         end
         # Synchronise before loading the next tile
         synchronize_threads(state)
     end
 
     # Store the final result in out
-    for w in UInt32(1):UInt32(WPT)
-        @inbounds out[(globalCol - 1 + (w - 1)*UInt32(RTS)) * Asize[1] + (globalRow - 1) + 1] = acc[w]
-    end
+    # for w in UInt32(1):UInt32(WPT)
+    #     @inbounds out[(globalCol - 1 + (w - 1)*UInt32(RTS)) * Asize[1] + (globalRow - 1) + 1] = acc[w]
+    # end
     return
 
 end
